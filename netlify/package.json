@@ -1,0 +1,6 @@
+{
+  "name": "vortex-serverless-loader",
+  "version": "1.0.0",
+  "description": "Netlify function to serve Lua scripts from private GitHub repository",
+  "type": "module"
+}
