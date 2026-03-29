@@ -1,16 +1,7 @@
-/**
- * Netlify Serverless Function to securely serve Lua scripts from private GitHub repository
- * 
- * Environment Variables Required:
- * - GITHUB_TOKEN: GitHub Personal Access Token with repo access
- * - GH_OWNER: GitHub repository owner
- * - GH_REPO: GitHub repository name  
- * - GH_PATH: Path to Lua script in repository
- * - ACCESS_KEY: Optional access key for security
- */
-
 export default async (request) => {
   try {
+    const url = new URL(request.url);
+
     if (request.method === "OPTIONS") {
       return new Response("", {
         status: 200,
@@ -32,7 +23,6 @@ export default async (request) => {
       });
     }
 
-    const url = new URL(request.url);
     const accessKey = url.searchParams.get("key");
     const expectedKey = process.env.ACCESS_KEY;
 
@@ -51,6 +41,8 @@ export default async (request) => {
     const repo = process.env.GH_REPO;
     const path = process.env.GH_PATH || "script.lua";
 
+    console.log({ owner, repo, path, hasToken: !!githubToken });
+
     if (!githubToken || !owner || !repo) {
       return new Response("-- server configuration error", {
         status: 500,
@@ -68,30 +60,25 @@ export default async (request) => {
         Authorization: `Bearer ${githubToken}`,
         Accept: "application/vnd.github.raw",
         "User-Agent": "Netlify-Function/1.0",
+        "X-GitHub-Api-Version": "2022-11-28",
       },
     });
 
     if (!fetchResponse.ok) {
-      return new Response(`-- failed to load script (${fetchResponse.status})`, {
-        status: 500,
-        headers: {
-          "Content-Type": "text/plain",
-          "Access-Control-Allow-Origin": "*",
-        },
-      });
+      const errorText = await fetchResponse.text();
+      return new Response(
+        `-- failed to load script (${fetchResponse.status}) ${errorText}`,
+        {
+          status: 500,
+          headers: {
+            "Content-Type": "text/plain",
+            "Access-Control-Allow-Origin": "*",
+          },
+        }
+      );
     }
 
     const scriptContent = await fetchResponse.text();
-
-    if (!scriptContent || !scriptContent.trim()) {
-      return new Response("-- script content is empty", {
-        status: 500,
-        headers: {
-          "Content-Type": "text/plain",
-          "Access-Control-Allow-Origin": "*",
-        },
-      });
-    }
 
     return new Response(scriptContent, {
       status: 200,
@@ -102,7 +89,7 @@ export default async (request) => {
       },
     });
   } catch (error) {
-    return new Response("-- failed to load script", {
+    return new Response(`-- failed to load script ${String(error)}`, {
       status: 500,
       headers: {
         "Content-Type": "text/plain",
