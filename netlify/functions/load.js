@@ -9,40 +9,41 @@
  * - ACCESS_KEY: Optional access key for security
  */
 
-export default async (event) => {
+export default async (request) => {
   try {
-    if (event.httpMethod === "OPTIONS") {
-      return {
-        statusCode: 200,
+    if (request.method === "OPTIONS") {
+      return new Response("", {
+        status: 200,
         headers: {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type, Authorization",
         },
-        body: "",
-      };
+      });
     }
 
-    if (event.httpMethod !== "GET") {
-      return {
-        statusCode: 405,
-        headers: { "Content-Type": "text/plain" },
-        body: "-- method not allowed",
-      };
-    }
-
-    const accessKey = event.queryStringParameters?.key;
-    const expectedKey = process.env.ACCESS_KEY;
-
-    if (expectedKey && accessKey !== expectedKey) {
-      return {
-        statusCode: 401,
+    if (request.method !== "GET") {
+      return new Response("-- method not allowed", {
+        status: 405,
         headers: {
           "Content-Type": "text/plain",
           "Access-Control-Allow-Origin": "*",
         },
-        body: "-- unauthorized",
-      };
+      });
+    }
+
+    const url = new URL(request.url);
+    const accessKey = url.searchParams.get("key");
+    const expectedKey = process.env.ACCESS_KEY;
+
+    if (expectedKey && accessKey !== expectedKey) {
+      return new Response("-- unauthorized", {
+        status: 401,
+        headers: {
+          "Content-Type": "text/plain",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
     }
 
     const githubToken = process.env.GITHUB_TOKEN;
@@ -51,11 +52,13 @@ export default async (event) => {
     const path = process.env.GH_PATH || "script.lua";
 
     if (!githubToken || !owner || !repo) {
-      return {
-        statusCode: 500,
-        headers: { "Content-Type": "text/plain" },
-        body: "-- server configuration error",
-      };
+      return new Response("-- server configuration error", {
+        status: 500,
+        headers: {
+          "Content-Type": "text/plain",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
     }
 
     const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
@@ -69,37 +72,42 @@ export default async (event) => {
     });
 
     if (!fetchResponse.ok) {
-      return {
-        statusCode: 500,
-        headers: { "Content-Type": "text/plain" },
-        body: `-- failed to load script (${fetchResponse.status})`,
-      };
+      return new Response(`-- failed to load script (${fetchResponse.status})`, {
+        status: 500,
+        headers: {
+          "Content-Type": "text/plain",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
     }
 
     const scriptContent = await fetchResponse.text();
 
     if (!scriptContent || !scriptContent.trim()) {
-      return {
-        statusCode: 500,
-        headers: { "Content-Type": "text/plain" },
-        body: "-- script content is empty",
-      };
+      return new Response("-- script content is empty", {
+        status: 500,
+        headers: {
+          "Content-Type": "text/plain",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
     }
 
-    return {
-      statusCode: 200,
+    return new Response(scriptContent, {
+      status: 200,
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-store",
         "Access-Control-Allow-Origin": "*",
       },
-      body: scriptContent,
-    };
+    });
   } catch (error) {
-    return {
-      statusCode: 500,
-      headers: { "Content-Type": "text/plain" },
-      body: "-- failed to load script",
-    };
+    return new Response("-- failed to load script", {
+      status: 500,
+      headers: {
+        "Content-Type": "text/plain",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
   }
 };
